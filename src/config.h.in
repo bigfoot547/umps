@@ -1,0 +1,10 @@
+#mesondefine NCURSES_WIDE
+#mesondefine NCURSES_INCLUDE
+
+#ifdef NCURSES_WIDE
+#define NCURSES_TEXT(_s) L ## _s
+#else
+#define NCURSES_TEXT(_s) _s
+#endif
+
+#define NS(_s) NCURSES_TEXT(_s)
