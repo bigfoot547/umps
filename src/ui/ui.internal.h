@@ -19,6 +19,16 @@
 
 #define UI__WINDOW_DOCK_MAX UI__WINDOW_DOCK_CENTER+1
 
+#ifdef NDEBUG
+#define ui__cast(_t, _v) ((struct ui_window_ ## _t *)(_v))
+#else
+#define ui__cast(_t, _v) (ui__check_cast_to_ ## _t(_v))
+
+struct ui_window_base *ui__check_cast_to_base(void *);
+struct ui_window_dock *ui__check_cast_to_dock(void *);
+struct ui_window_root *ui__check_cast_to_root(void *);
+#endif
+
 /* concrete type definitions */
 
 /* called to refresh the window (should refresh children as well) */
@@ -46,8 +56,9 @@ struct ui_window_dock {
 };
 
 struct ui_window_root {
-  struct ui_window_dock super;
+  struct ui_window_base super;
 
+  struct ui_window_base *content;
   struct ui_window_base *floating;
 };
 
@@ -56,7 +67,7 @@ struct ui_window_root {
 /* in-place constructors */
 void ui__init_window_base(struct ui_window_base *);
 void ui__init_window_dock(struct ui_window_dock *);
-void ui__init_window_root(struct ui_window_root *);
+void ui__init_window_root(struct ui_window_root *, WINDOW *);
 
 struct ui_window_base *ui__find_focused(void);
 
@@ -77,5 +88,11 @@ void ui__dock_default_layout_proc(struct ui_window_base *base);
 /* root window hooks */
 void ui__root_draw_proc(struct ui_window_base *);
 void ui__root_layout_proc(struct ui_window_base *);
+
+/* root_window_utilities */
+
+void ui__root_set_content(struct ui_window_root *, struct ui_window_base *);
+
+extern const char *ui__status_text;
 
 #endif /* include guard */

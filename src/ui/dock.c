@@ -16,7 +16,7 @@ unsigned ui__dock_position_opposite(unsigned position)
     case UI__WINDOW_DOCK_RIGHT:
       return UI__WINDOW_DOCK_LEFT;
     default:
-      assert(false); /* trap: this function should never be called here! */
+      assert(false); /* trap: the center dock has no opposite! (or position is invalid) */
   }
 }
 
@@ -139,7 +139,7 @@ void ui__dock_add_child(struct ui_window_dock *dock, struct ui_window_base *chil
 
 void ui__dock_default_draw_proc(struct ui_window_base *base)
 {
-  struct ui_window_dock *dock = (struct ui_window_dock *)base;
+  struct ui_window_dock *dock = ui__cast(dock, base);
 
   wrefresh(dock->super.cwindow);
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
@@ -151,7 +151,7 @@ void ui__dock_default_draw_proc(struct ui_window_base *base)
 
 void ui__dock_default_layout_proc(struct ui_window_base *base)
 {
-  struct ui_window_dock *dock = (struct ui_window_dock *)base;
+  struct ui_window_dock *dock = ui__cast(dock, base);
 
   /* fix the layout of children */
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
@@ -163,21 +163,4 @@ void ui__dock_default_layout_proc(struct ui_window_base *base)
     child->cwindow = ui__dock_place_window(dock, i, dock->childsizes[i]);
     ui__call_layout_proc(child);
   }
-}
-
-void ui__root_draw_proc(struct ui_window_base *base)
-{
-  struct ui_window_root *root = (struct ui_window_root *)base;
-  ui__dock_default_draw_proc(base);
-
-  if (root->floating) ui__call_draw_proc(root->floating);
-}
-
-void ui__root_layout_proc(struct ui_window_base *base)
-{
-  struct ui_window_root *root = (struct ui_window_root *)base;
-  ui__dock_default_layout_proc(base);
-
-  /* TODO: adjust floating window position :) */
-  if (root->floating) ui__call_layout_proc(root->floating);
 }

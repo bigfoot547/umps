@@ -1,2 +1,1 @@
-option('ncurses_wide', type : 'boolean', value : false,
-  description : 'set to true to prevent usage of ncursesw')
+option('ncurses_narrow', type : 'boolean', value : false, description : 'set to true to prevent usage of ncursesw')
