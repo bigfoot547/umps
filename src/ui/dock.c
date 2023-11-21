@@ -16,7 +16,7 @@ unsigned ui__dock_position_opposite(unsigned position)
     case UI__WINDOW_DOCK_RIGHT:
       return UI__WINDOW_DOCK_LEFT;
     default:
-      assert(false); /* trap: the center dock has no opposite! (or position is invalid) */
+      abort(); /* trap: the center dock has no opposite! (or position is invalid) */
   }
 }
 
