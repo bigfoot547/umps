@@ -6,7 +6,7 @@
 
 int main(void)
 {
-  setlocale(LC_ALL, "");
+  setlocale(LC_ALL, "C.UTF-8");
 
   printf("%d\n", getpid());
   #if 0

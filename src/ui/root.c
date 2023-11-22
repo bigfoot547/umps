@@ -1,6 +1,8 @@
-#include <assert.h>
-
 #include "ui.internal.h"
+#include "macros.h"
+
+#define UI__ROOT_MIN_Y (24)
+#define UI__ROOT_MIN_X (80)
 
 /* top margin for menu bar */
 #define UI__ROOT_MARGIN_TOP    (1)
@@ -33,6 +35,18 @@ void ui__root_draw_proc(struct ui_window_base *base)
 {
   struct ui_window_root *root = ui__cast(root, base);
 
+  int maxy, maxx;
+  getmaxyx(base->cwindow, maxy, maxx);
+  if (root->undersize_scr) {
+    for (int y = 0; y < maxy; ++y)
+      mvwhline(base->cwindow, y, 0, y < 3 ? ' ' : '/', maxx);
+
+    mvwprintw(base->cwindow, 0, 0, "Your terminal is too small! It must be at least %dx%d.", UI__ROOT_MIN_X, UI__ROOT_MIN_Y);
+
+    wrefresh(base->cwindow);
+    return;
+  }
+
   attron(A_REVERSE);
   mvwhline(base->cwindow, 0, 0, ' ', getmaxx(base->cwindow));
   mvwhline(base->cwindow, getmaxy(base->cwindow)-1, 0, ' ', getmaxx(base->cwindow));
@@ -60,6 +74,16 @@ void ui__root_layout_proc(struct ui_window_base *base)
 {
   struct ui_window_root *root = ui__cast(root, base);
 
+  int maxy, maxx;
+  getmaxyx(base->cwindow, maxy, maxx);
+
+  if (maxy < UI__ROOT_MIN_Y || maxx < UI__ROOT_MIN_X) {
+    root->undersize_scr = true;
+    return;
+  }
+
+  root->undersize_scr = false;
+
   if (root->content) {
     delwin(root->content->cwindow);
     root->content->cwindow = ui__root_place_content_window(root);
@@ -69,11 +93,15 @@ void ui__root_layout_proc(struct ui_window_base *base)
 
 void ui__root_set_content(struct ui_window_root *root, struct ui_window_base *window)
 {
-  assert(!window->parent);
-  assert(!window->cwindow);
-  assert(!root->content);
+  umps_assert(!window->parent);
+  umps_assert(!window->cwindow);
+  umps_assert(!root->content);
 
   window->cwindow = ui__root_place_content_window(root);
   root->content = window;
   window->parent = ui__cast(base, root);
+}
+
+void ui__root_set_floating(struct ui_window_root *root, struct ui_window_base *window)
+{
 }

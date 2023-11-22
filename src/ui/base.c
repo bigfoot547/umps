@@ -1,6 +1,6 @@
-#include <curses.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "ui.internal.h"
 
@@ -44,6 +44,7 @@ void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
   root->super.draw_proc = &ui__root_draw_proc;
   root->super.layout_proc = &ui__root_layout_proc;
 
+  root->undersize_scr = false;
   root->content = NULL;
   root->floating = NULL;
 }
@@ -109,7 +110,9 @@ struct ui_window_base *ui__find_focused(void)
       case UI__WINDOW_TYPE_ROOT:
         {
           struct ui_window_root *root = ui__cast(root, window);
-          if (root->floating) {
+          if (root->undersize_scr) {
+            return window; /* gobble up focus */
+          } else if (root->floating) {
             window = root->floating;
           } else if (root->content) {
             window = root->content;
@@ -197,7 +200,7 @@ void ui_init(void)
   ui__init_window_dock(maindock);
   ui__root_set_content(ui_root, ui__cast(base, maindock));
 
-  for (int i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
+  for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
     if (i == UI__WINDOW_DOCK_LEFT) continue;
     struct ui_window_base *win_traces = malloc(sizeof(struct ui_window_base));
@@ -234,7 +237,7 @@ void ui_handle(void)
       ui__status_text = "Hello...";
       ui__call_draw_proc(ui__cast(base, ui_root));
     } else if (inp == NS('w')) {
-      ui__status_text = "World!";
+      ui__status_text = "World\u0416!";
       ui__call_draw_proc(ui__cast(base, ui_root));
     }
   }

@@ -5,6 +5,8 @@
 #include "config.h"
 #include NCURSES_INCLUDE
 
+#include <stdbool.h>
+
 #define UI__WINDOW_DOCK_TOP    (0u)
 #define UI__WINDOW_DOCK_BOTTOM (1u)
 #define UI__WINDOW_DOCK_LEFT   (2u)
@@ -57,6 +59,7 @@ struct ui_window_dock {
 
 struct ui_window_root {
   struct ui_window_base super;
+  bool undersize_scr;
 
   struct ui_window_base *content;
   struct ui_window_base *floating;

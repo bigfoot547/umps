@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "macros.h"
 #include "ui.internal.h"
 
 unsigned ui__dock_position_opposite(unsigned position)
@@ -16,7 +17,7 @@ unsigned ui__dock_position_opposite(unsigned position)
     case UI__WINDOW_DOCK_RIGHT:
       return UI__WINDOW_DOCK_LEFT;
     default:
-      abort(); /* trap: the center dock has no opposite! (or position is invalid) */
+      umps_trap; /* trap: the center dock has no opposite! (or position is invalid) */
   }
 }
 
@@ -108,7 +109,7 @@ WINDOW *ui__dock_place_window(struct ui_window_dock *dock, unsigned position, fl
       out_x = begx;
       break;
     default:
-      assert(false);
+      umps_trap;
   }
 
   return newwin(out_lines, out_cols, out_y, out_x);
@@ -116,9 +117,9 @@ WINDOW *ui__dock_place_window(struct ui_window_dock *dock, unsigned position, fl
 
 void ui__dock_add_child(struct ui_window_dock *dock, struct ui_window_base *child, unsigned position, float size)
 {
-  assert(!dock->children[position]); /* TODO: handle gracefully (technically invalid usage) */
-  assert(!child->parent); /* TODO: take this window from its current parent */
-  assert(!child->cwindow);
+  umps_assert_s(!dock->children[position], "child present"); /* TODO: handle gracefully (technically invalid usage) */
+  umps_assert_s(!child->parent, "child parent present"); /* TODO: take this window from its current parent */
+  umps_assert_s(!child->cwindow, "child already initialized");
 
   child->parent = (struct ui_window_base *)dock;
   dock->children[position] = child;

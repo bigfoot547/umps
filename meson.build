@@ -26,4 +26,5 @@ else
 endif
 
 subdir('src')
-executable('umps', umps_srcs, dependencies : [curses_dep], include_directories : umps_config_inc)
+executable('umps', umps_srcs, dependencies : [curses_dep], include_directories : umps_config_inc,
+  override_options : {'b_ndebug' : 'if-release'})

@@ -23,4 +23,11 @@ struct ui_window_root *ui__check_cast_to_root(void *obj)
   return obj;
 }
 
+#else
+
+/* the file must have a declaration */
+void umps__debug_do_nothing(void)
+{
+}
+
 #endif
