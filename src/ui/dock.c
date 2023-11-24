@@ -21,21 +21,21 @@ unsigned ui__dock_position_opposite(unsigned position)
   }
 }
 
-void ui__dock_adjust(struct ui_window_dock *dock, unsigned flags, int *maxy, int *maxx, int *begy, int *begx)
+void ui__dock_adjust(struct ui_window_dock *dock, unsigned flags, struct ui_dims *dims)
 {
   if (flags & 1)
   {
     if (dock->children[UI__WINDOW_DOCK_TOP])
     {
-      unsigned top_maxy = getmaxy(dock->children[UI__WINDOW_DOCK_TOP]->cwindow);
-      *maxy -= top_maxy;
-      *begy += top_maxy;
+      unsigned top_maxy = dock->children[UI__WINDOW_DOCK_TOP]->dims.maxy;
+      dims->maxy -= top_maxy;
+      dims->begy += top_maxy;
     }
 
     if (dock->children[UI__WINDOW_DOCK_BOTTOM])
     {
-      unsigned bottom_maxy = getmaxy(dock->children[UI__WINDOW_DOCK_BOTTOM]->cwindow);
-      *maxy -= bottom_maxy;
+      unsigned bottom_maxy = dock->children[UI__WINDOW_DOCK_BOTTOM]->dims.maxy;
+      dims->maxy -= bottom_maxy;
     }
   }
 
@@ -43,15 +43,15 @@ void ui__dock_adjust(struct ui_window_dock *dock, unsigned flags, int *maxy, int
   {
     if (dock->children[UI__WINDOW_DOCK_LEFT])
     {
-      unsigned left_maxx = getmaxx(dock->children[UI__WINDOW_DOCK_LEFT]->cwindow);
-      *maxx -= left_maxx;
-      *begx += left_maxx;
+      unsigned left_maxx = dock->children[UI__WINDOW_DOCK_LEFT]->dims.maxx;
+      dims->maxx -= left_maxx;
+      dims->begx += left_maxx;
     }
 
     if (dock->children[UI__WINDOW_DOCK_RIGHT])
     {
-      unsigned right_maxx = getmaxx(dock->children[UI__WINDOW_DOCK_RIGHT]->cwindow);
-      *maxx -= right_maxx;
+      unsigned right_maxx = dock->children[UI__WINDOW_DOCK_RIGHT]->dims.maxx;
+      dims->maxx -= right_maxx;
     }
   }
 }
@@ -62,64 +62,54 @@ void ui__dock_adjust(struct ui_window_dock *dock, unsigned flags, int *maxy, int
  * - Center
  *
  * Note that other methods (layout proc namely) require this same order to be present in the values of the dock constants. */
-WINDOW *ui__dock_place_window(struct ui_window_dock *dock, unsigned position, float size)
+void ui__dock_place_window(struct ui_window_dock *dock, unsigned position, float size, struct ui_dims *dims)
 {
-  int maxy, maxx;
-  int begy, begx;
-
-  int out_lines, out_cols;
-  int out_y, out_x;
-
-  getmaxyx(dock->super.cwindow, maxy, maxx);
-  getbegyx(dock->super.cwindow, begy, begx);
+  struct ui_dims mydims = dock->super.dims;
 
   switch (position)
   {
     case UI__WINDOW_DOCK_TOP:
-      out_lines = maxy * size;
-      out_y = begy;
-      out_cols = maxx;
-      out_x = begx;
+      dims->maxy = mydims.maxy * size;
+      dims->begy = mydims.begy;
+      dims->maxx = mydims.maxx;
+      dims->begx = mydims.begx;
       break;
     case UI__WINDOW_DOCK_BOTTOM:
-      out_lines = maxy * size;
-      out_y = maxy - out_lines + begy;
-      out_cols = maxx;
-      out_x = begx;
+      dims->maxy = mydims.maxy * size;
+      dims->begy = mydims.maxy - dims->maxy + mydims.begy;
+      dims->maxx = mydims.maxx;
+      dims->begx = mydims.begx;
       break;
     case UI__WINDOW_DOCK_LEFT:
-      ui__dock_adjust(dock, 1, &maxy, &maxx, &begy, &begx);
-      out_lines = maxy;
-      out_y = begy;
-      out_cols = maxx * size;
-      out_x = begx;
+      ui__dock_adjust(dock, 1, &mydims);
+      dims->maxy = mydims.maxy;
+      dims->begy = mydims.begy;
+      dims->maxx = mydims.maxx * size;
+      dims->begx = mydims.begx;
       break;
     case UI__WINDOW_DOCK_RIGHT:
-      ui__dock_adjust(dock, 1, &maxy, &maxx, &begy, &begx);
-      out_lines = maxy;
-      out_y = begy;
-      out_cols = maxx * size;
-      out_x = maxx - out_cols + begx;
+      ui__dock_adjust(dock, 1, &mydims);
+      dims->maxy = mydims.maxy;
+      dims->begy = mydims.begy;
+      dims->maxx = mydims.maxx * size;
+      dims->begx = mydims.maxx - dims->maxx + mydims.begx;
       break;
     case UI__WINDOW_DOCK_CENTER:
-      ui__dock_adjust(dock, 3, &maxy, &maxx, &begy, &begx);
-      out_lines = maxy;
-      out_y = begy;
-      out_cols = maxx;
-      out_x = begx;
+      ui__dock_adjust(dock, 3, &mydims);
+      dims->maxy = mydims.maxy;
+      dims->begy = mydims.begy;
+      dims->maxx = mydims.maxx;
+      dims->begx = mydims.begx;
       break;
     default:
       umps_trap;
   }
-
-  return newwin(out_lines, out_cols, out_y, out_x);
 }
 
 void ui__dock_add_child(struct ui_window_dock *dock, struct ui_window_base *child, unsigned position, float size)
 {
   umps_assert_s(!dock->children[position], "child present"); /* TODO: handle gracefully (technically invalid usage) */
   umps_assert_s(!child->parent, "child parent present"); /* TODO: take this window from its current parent */
-  umps_assert_s(!child->cwindow, "child already initialized");
 
   child->parent = (struct ui_window_base *)dock;
   dock->children[position] = child;
@@ -135,20 +125,13 @@ void ui__dock_add_child(struct ui_window_dock *dock, struct ui_window_base *chil
   }
 
   /* now set up the window for this child */
-  child->cwindow = ui__dock_place_window(dock, position, size);
+  ui__dock_place_window(dock, position, size, &child->dims);
+  ui__call_layout_proc(child);
 }
 
 void ui__dock_default_draw_proc(struct ui_window_base *base)
 {
   struct ui_window_dock *dock = ui__cast(dock, base);
-  int maxy, maxx;
-  getmaxyx(base->cwindow, maxy, maxx);
-
-  for (int i = 0; i < maxy; ++i) {
-    mvwhline(base->cwindow, i, 0, '.', maxx);
-  }
-
-  wnoutrefresh(dock->super.cwindow);
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
     if (dock->children[i])
@@ -166,8 +149,7 @@ void ui__dock_default_layout_proc(struct ui_window_base *base)
     struct ui_window_base *child = dock->children[i];
     if (!child) continue;
 
-    delwin(child->cwindow);
-    child->cwindow = ui__dock_place_window(dock, i, dock->childsizes[i]);
+    ui__dock_place_window(dock, i, dock->childsizes[i], &child->dims);
     ui__call_layout_proc(child);
   }
 }

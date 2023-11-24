@@ -1,7 +1,7 @@
 #include "ui.internal.h"
 #include "macros.h"
 #include "ui/uimenu.internal.h"
-#include <curses.h>
+#include <string.h>
 
 #define UI__ROOT_MIN_Y (24)
 #define UI__ROOT_MIN_X (80)
@@ -17,20 +17,15 @@
 
 const char *ui__status_text = "Ready";
 
-WINDOW *ui__root_place_content_window(struct ui_window_root *root)
+void ui__root_place_content_window(struct ui_window_root *root, struct ui_dims *dims)
 {
-  int maxy, maxx;
-  int begy, begx;
-  getmaxyx(root->super.cwindow, maxy, maxx);
-  getbegyx(root->super.cwindow, begy, begx);
+  memcpy(dims, &root->super.dims, sizeof(struct ui_dims));
 
-  begy += UI__ROOT_MARGIN_TOP;
-  maxy -= UI__ROOT_MARGIN_TOP + UI__ROOT_MARGIN_BOTTOM;
+  dims->begy += UI__ROOT_MARGIN_TOP;
+  dims->maxy -= UI__ROOT_MARGIN_TOP + UI__ROOT_MARGIN_BOTTOM;
 
-  begx += UI__ROOT_MARGIN_LEFT;
-  begx -= UI__ROOT_MARGIN_LEFT + UI__ROOT_MARGIN_RIGHT;
-
-  return newwin(maxy, maxx, begy, begx);
+  dims->begx += UI__ROOT_MARGIN_LEFT;
+  dims->maxx -= UI__ROOT_MARGIN_LEFT + UI__ROOT_MARGIN_RIGHT;
 }
 
 void ui__root_draw_menu(struct ui_window_root *root);
@@ -41,21 +36,21 @@ void ui__root_draw_proc(struct ui_window_base *base)
   struct ui_window_root *root = ui__cast(root, base);
 
   int maxy, maxx;
-  getmaxyx(base->cwindow, maxy, maxx);
+  getmaxyx(root->cwindow, maxy, maxx);
   if (root->undersize_scr) {
     for (int y = 0; y < maxy; ++y)
-      mvwhline(base->cwindow, y, 0, y < 3 ? ' ' : '/', maxx);
+      mvwhline(root->cwindow, y, 0, y < 3 ? ' ' : '/', maxx);
 
-    mvwprintw(base->cwindow, 0, 0, "Your terminal is too small! It must be at least %dx%d.", UI__ROOT_MIN_X, UI__ROOT_MIN_Y);
+    mvwprintw(root->cwindow, 0, 0, "Your terminal is too small! It must be at least %dx%d.", UI__ROOT_MIN_X, UI__ROOT_MIN_Y);
 
-    wrefresh(base->cwindow);
+    wrefresh(root->cwindow);
     return;
   }
 
   ui__root_draw_menu(root);
   ui__root_draw_status(root);
 
-  wnoutrefresh(base->cwindow);
+  wnoutrefresh(root->cwindow);
 
   if (root->content) {
     ui__call_draw_proc(root->content);
@@ -70,7 +65,7 @@ void ui__root_draw_proc(struct ui_window_base *base)
 
 void ui__root_draw_menu(struct ui_window_root *root)
 {
-  WINDOW *mywin = root->super.cwindow;
+  WINDOW *mywin = root->cwindow;
   attron(A_REVERSE);
   mvwhline(mywin, 0, 0, ' ', getmaxx(mywin));
   mvwaddstr(mywin, 0, 0, " UMPS v0.1.0-dev");
@@ -101,7 +96,7 @@ void ui__root_draw_menu(struct ui_window_root *root)
 
 void ui__root_draw_status(struct ui_window_root *root)
 {
-  WINDOW *mywin = root->super.cwindow;
+  WINDOW *mywin = root->cwindow;
 
   attron(A_REVERSE);
   mvwhline(mywin, getmaxy(mywin)-1, 0, ' ', getmaxx(mywin));
@@ -117,10 +112,12 @@ void ui__root_layout_proc(struct ui_window_base *base)
 {
   struct ui_window_root *root = ui__cast(root, base);
 
-  int maxy, maxx;
-  getmaxyx(base->cwindow, maxy, maxx);
+  if (root->cwindow != stdscr) {
+    if (root->cwindow) delwin(root->cwindow);
+    root->cwindow = newwin(root->super.dims.maxy, root->super.dims.maxx, root->super.dims.begy, root->super.dims.begx);
+  }
 
-  if (maxy < UI__ROOT_MIN_Y || maxx < UI__ROOT_MIN_X) {
+  if (root->super.dims.maxy < UI__ROOT_MIN_Y || root->super.dims.maxx < UI__ROOT_MIN_X) {
     root->undersize_scr = true;
     return;
   }
@@ -128,8 +125,7 @@ void ui__root_layout_proc(struct ui_window_base *base)
   root->undersize_scr = false;
 
   if (root->content) {
-    delwin(root->content->cwindow);
-    root->content->cwindow = ui__root_place_content_window(root);
+    ui__root_place_content_window(root, &root->content->dims);
     ui__call_layout_proc(root->content);
   }
 }
@@ -137,18 +133,18 @@ void ui__root_layout_proc(struct ui_window_base *base)
 void ui__root_set_content(struct ui_window_root *root, struct ui_window_base *window)
 {
   umps_assert(!window->parent);
-  umps_assert(!window->cwindow);
   umps_assert(!root->content);
 
-  window->cwindow = ui__root_place_content_window(root);
+  ui__root_place_content_window(root, &window->dims);
   root->content = window;
   window->parent = ui__cast(base, root);
+
+  ui__call_layout_proc(window);
 }
 
 void ui__root_set_floating(struct ui_window_root *root, struct ui_window_base *window)
 {
   umps_assert(!window->parent);
-  umps_assert(!window->cwindow);
   umps_assert(!root->floating);
 
   

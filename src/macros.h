@@ -1,6 +1,8 @@
 #ifndef UMPS_MACROS_H_INCLUDED
 #define UMPS_MACROS_H_INCLUDED
 
+#define umps_unused(_v) ((void)(_v))
+
 /* define handy macros (unreachable and trap) */
 
 #ifdef __GNUC__ /* gcc and clang */

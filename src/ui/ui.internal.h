@@ -17,8 +17,9 @@
 #define UI__WINDOW_FOCUS_NONE (999u)
 
 #define UI__WINDOW_TYPE_BASE (0u)
-#define UI__WINDOW_TYPE_DOCK (1u)
-#define UI__WINDOW_TYPE_ROOT (2u)
+#define UI__WINDOW_TYPE_LEAF (1u)
+#define UI__WINDOW_TYPE_DOCK (2u)
+#define UI__WINDOW_TYPE_ROOT (3u)
 
 #define UI__WINDOW_DOCK_MAX UI__WINDOW_DOCK_CENTER+1
 
@@ -28,6 +29,7 @@
 #define ui__cast(_t, _v) (ui__check_cast_to_ ## _t(_v))
 
 struct ui_window_base *ui__check_cast_to_base(void *);
+struct ui_window_leaf *ui__check_cast_to_leaf(void *);
 struct ui_window_dock *ui__check_cast_to_dock(void *);
 struct ui_window_root *ui__check_cast_to_root(void *);
 #endif
@@ -43,10 +45,19 @@ typedef void (ui__layout_proc)(struct ui_window_base *);
 struct ui_window_base {
   unsigned type;
   struct ui_window_base *parent; /* the parent of a window manages its memory */
-  WINDOW *cwindow; /* ncurses window */
+  struct ui_dims {
+    int maxy, maxx;
+    int begy, begx;
+  } dims;
 
   ui__draw_proc *draw_proc;
   ui__layout_proc *layout_proc;
+};
+
+struct ui_window_leaf {
+  struct ui_window_base super;
+
+  WINDOW *cwindow;
 };
 
 struct ui_window_dock {
@@ -60,6 +71,8 @@ struct ui_window_dock {
 
 struct ui_window_root {
   struct ui_window_base super;
+  WINDOW *cwindow;
+
   bool undersize_scr;
 
   struct ui_window_base *content;
@@ -72,6 +85,7 @@ struct ui_window_root {
 
 /* in-place constructors */
 void ui__init_window_base(struct ui_window_base *);
+void ui__init_window_leaf(struct ui_window_leaf *);
 void ui__init_window_dock(struct ui_window_dock *);
 void ui__init_window_root(struct ui_window_root *, WINDOW *);
 

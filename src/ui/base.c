@@ -4,21 +4,59 @@
 
 #include "ui.internal.h"
 #include "ui/uimenu.internal.h"
+#include "../macros.h"
 
 struct ui_window_root *ui_root = NULL;
 
 void ui__default_draw_proc(struct ui_window_base *base)
 {
-  wnoutrefresh(base->cwindow); /* root window calls doupdate */
+  umps_unused(base);
+}
+
+void ui__leaf_draw_proc(struct ui_window_base *base)
+{
+  WINDOW *mywin = ((struct ui_window_leaf *)base)->cwindow;
+  int maxy, maxx;
+  getmaxyx(mywin, maxy, maxx);
+
+  box(mywin, 0, 0);
+  mvwaddstr(mywin, 0, 2, "Traces");
+  for (int i = 1; i < maxy-1; ++i) {
+    mvwhline(mywin, i, 1, '.', maxx - 2);
+  }
+
+  wnoutrefresh(mywin);
+}
+
+void ui__leaf_layout_proc(struct ui_window_base *base)
+{
+  struct ui_window_leaf *leaf = (struct ui_window_leaf *)base;
+  if (leaf->cwindow) delwin(leaf->cwindow);
+  leaf->cwindow = newwin(leaf->super.dims.maxy, leaf->super.dims.maxx, leaf->super.dims.begy, leaf->super.dims.begx);
 }
 
 void ui__init_window_base(struct ui_window_base *base)
 {
   base->type = UI__WINDOW_TYPE_BASE;
   base->parent = NULL;
-  base->cwindow = NULL;
+
+  base->dims.begy = 0;
+  base->dims.begx = 0;
+  base->dims.maxy = 0;
+  base->dims.maxx = 0;
+
   base->draw_proc = &ui__default_draw_proc;
   base->layout_proc = NULL;
+}
+
+void ui__init_window_leaf(struct ui_window_leaf *leaf)
+{
+  ui__init_window_base(&leaf->super);
+  leaf->super.type = UI__WINDOW_TYPE_LEAF;
+  leaf->super.draw_proc = &ui__leaf_draw_proc;
+  leaf->super.layout_proc = &ui__leaf_layout_proc;
+
+  leaf->cwindow = NULL;
 }
 
 void ui__init_window_dock(struct ui_window_dock *dock)
@@ -40,10 +78,13 @@ void ui__init_window_dock(struct ui_window_dock *dock)
 void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
 {
   ui__init_window_base(&root->super);
-  root->super.cwindow = cwindow;
   root->super.type = UI__WINDOW_TYPE_ROOT;
   root->super.draw_proc = &ui__root_draw_proc;
   root->super.layout_proc = &ui__root_layout_proc;
+
+  root->cwindow = cwindow;
+  getmaxyx(cwindow, root->super.dims.maxy, root->super.dims.maxx);
+  getbegyx(cwindow, root->super.dims.begy, root->super.dims.begx);
 
   root->undersize_scr = false;
   root->content = NULL;
@@ -55,6 +96,7 @@ void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
 
 /* type-specific destructors */
 void ui__destroy_window_base(struct ui_window_base *base);
+void ui__destroy_window_leaf(struct ui_window_leaf *leaf);
 void ui__destroy_window_dock(struct ui_window_dock *dock);
 
 void ui__window_destroy_root(struct ui_window_root *root)
@@ -66,6 +108,8 @@ void ui__window_destroy_root(struct ui_window_root *root)
     ui__destroy_window(root->floating);
 
   uimenu_menu_free(root->menu_root);
+
+  if (root->cwindow) delwin(root->cwindow);
 
   ui__destroy_window_base(&root->super);
 }
@@ -81,9 +125,14 @@ void ui__destroy_window_dock(struct ui_window_dock *dock)
   ui__destroy_window_base(&dock->super);
 }
 
+void ui__destroy_window_leaf(struct ui_window_leaf *leaf)
+{
+  if (leaf->cwindow) delwin(leaf->cwindow);
+  ui__destroy_window_base(&leaf->super);
+}
+
 void ui__destroy_window_base(struct ui_window_base *base)
 {
-  delwin(base->cwindow);
   free(base);
 }
 
@@ -99,14 +148,17 @@ void ui__destroy_window(struct ui_window_base *base)
     case UI__WINDOW_TYPE_DOCK:
       ui__destroy_window_dock(ui__cast(dock, base));
       break;
+    case UI__WINDOW_TYPE_LEAF:
+      ui__destroy_window_leaf(ui__cast(leaf, base));
+      break;
     case UI__WINDOW_TYPE_BASE:
       ui__destroy_window_base(base);
   }
 }
 
 /* the focused window MUST be a leaf window, or the screen will get clobbered.
- * This is because the focused window will have methods like getch() called on it,
- * which brings it to the "foreground", squashing whatever is behind it. */
+ * This is because the focused window will have wgetch() called for it, which
+ * calls wrefresh() sometimes. This will clobber windows inside of it. */
 struct ui_window_base *ui__find_focused(void)
 {
   struct ui_window_base *window = ui__cast(base, ui_root);
@@ -171,20 +223,6 @@ void ui__call_layout_proc(struct ui_window_base *base)
   }
 }
 
-void ui__traces_draw_proc(struct ui_window_base *base)
-{
-  box(base->cwindow, 0, 0);
-  int maxy, maxx;
-
-  mvwaddstr(base->cwindow, 0, 2, "Traces");
-  getmaxyx(base->cwindow, maxy, maxx);
-  for (int i = 1; i < maxy-1; ++i)
-  {
-    mvwhline(base->cwindow, i, 1, '.', maxx-2);
-  }
-  wnoutrefresh(base->cwindow);
-}
-
 void ui_init(void)
 {
   ui_root = malloc(sizeof(struct ui_window_root)); /* TODO: check */
@@ -216,12 +254,12 @@ void ui_init(void)
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
     if (i == UI__WINDOW_DOCK_LEFT) continue;
-    struct ui_window_base *win_traces = malloc(sizeof(struct ui_window_base));
-    ui__init_window_base(win_traces);
-    ui__dock_add_child(maindock, win_traces, i, 1./5);
-    win_traces->draw_proc = &ui__traces_draw_proc;
+    struct ui_window_leaf *win_traces = malloc(sizeof(struct ui_window_leaf));
+    ui__init_window_leaf(win_traces);
+    ui__dock_add_child(maindock, ui__cast(base, win_traces), i, 1./5);
   }
 
+  /* ui__call_layout_proc(ui__cast(base, ui_root)); */
   ui__call_draw_proc(ui__cast(base, ui_root));
 }
 
@@ -233,7 +271,8 @@ void ui_handle(void)
 
 #ifdef NCURSES_WIDE
     wint_t inp;
-    wget_wch(window->cwindow, &inp);
+    /* FIXME: find a better way of circumnavigating this annoying implied-wrefresh business */
+    wget_wch(ui__cast(leaf, window)->cwindow, &inp);
 #else
     int inp = wgetch(window->cwindow);
 #endif
@@ -244,6 +283,8 @@ void ui_handle(void)
     }
     else if (inp == KEY_RESIZE)
     {
+      getmaxyx(ui_root->cwindow, ui_root->super.dims.maxy, ui_root->super.dims.maxx);
+      getbegyx(ui_root->cwindow, ui_root->super.dims.begy, ui_root->super.dims.begx);
       ui__call_layout_proc(ui__cast(base, ui_root));
       ui__call_draw_proc(ui__cast(base, ui_root));
     } else if (inp == NS('h')) {
