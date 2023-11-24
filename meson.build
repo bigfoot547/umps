@@ -27,4 +27,4 @@ endif
 
 subdir('src')
 executable('umps', umps_srcs, dependencies : [curses_dep], include_directories : umps_config_inc,
-  override_options : {'b_ndebug' : 'if-release'})
+  override_options : {'b_ndebug' : 'if-release', 'c_std' : 'c99' })

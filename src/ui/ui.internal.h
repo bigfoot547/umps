@@ -2,6 +2,7 @@
 #define UMPS_UI_INTERNAL_H_INCLUDED
 
 #include "../ui.h"
+#include "uimenu.internal.h"
 #include "config.h"
 #include NCURSES_INCLUDE
 
@@ -63,6 +64,8 @@ struct ui_window_root {
 
   struct ui_window_base *content;
   struct ui_window_base *floating;
+
+  struct uimenu_item_menu *menu_root;
 };
 
 /* internal utils */

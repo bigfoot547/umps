@@ -141,8 +141,14 @@ void ui__dock_add_child(struct ui_window_dock *dock, struct ui_window_base *chil
 void ui__dock_default_draw_proc(struct ui_window_base *base)
 {
   struct ui_window_dock *dock = ui__cast(dock, base);
+  int maxy, maxx;
+  getmaxyx(base->cwindow, maxy, maxx);
 
-  wrefresh(dock->super.cwindow);
+  for (int i = 0; i < maxy; ++i) {
+    mvwhline(base->cwindow, i, 0, '.', maxx);
+  }
+
+  wnoutrefresh(dock->super.cwindow);
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
     if (dock->children[i])

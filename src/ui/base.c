@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "ui.internal.h"
+#include "ui/uimenu.internal.h"
 
 struct ui_window_root *ui_root = NULL;
 
@@ -47,6 +48,9 @@ void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
   root->undersize_scr = false;
   root->content = NULL;
   root->floating = NULL;
+
+  root->menu_root = malloc(sizeof(struct uimenu_item_menu));
+  uimenu_item_menu_init(root->menu_root, NULL);
 }
 
 /* type-specific destructors */
@@ -60,6 +64,8 @@ void ui__window_destroy_root(struct ui_window_root *root)
 
   if (root->floating)
     ui__destroy_window(root->floating);
+
+  uimenu_menu_free(root->menu_root);
 
   ui__destroy_window_base(&root->super);
 }

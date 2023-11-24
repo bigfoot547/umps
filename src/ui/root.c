@@ -1,5 +1,6 @@
 #include "ui.internal.h"
 #include "macros.h"
+#include <curses.h>
 
 #define UI__ROOT_MIN_Y (24)
 #define UI__ROOT_MIN_X (80)
@@ -13,7 +14,7 @@
 #define UI__ROOT_MARGIN_LEFT   (0)
 #define UI__ROOT_MARGIN_RIGHT  (0)
 
-const char *ui__status_text = NULL;
+const char *ui__status_text = "Ready";
 
 WINDOW *ui__root_place_content_window(struct ui_window_root *root)
 {
@@ -31,6 +32,9 @@ WINDOW *ui__root_place_content_window(struct ui_window_root *root)
   return newwin(maxy, maxx, begy, begx);
 }
 
+void ui__root_draw_menu(struct ui_window_root *root);
+void ui__root_draw_status(struct ui_window_root *root);
+
 void ui__root_draw_proc(struct ui_window_base *base)
 {
   struct ui_window_root *root = ui__cast(root, base);
@@ -47,15 +51,8 @@ void ui__root_draw_proc(struct ui_window_base *base)
     return;
   }
 
-  attron(A_REVERSE);
-  mvwhline(base->cwindow, 0, 0, ' ', getmaxx(base->cwindow));
-  mvwhline(base->cwindow, getmaxy(base->cwindow)-1, 0, ' ', getmaxx(base->cwindow));
-
-  if (ui__status_text) {
-    mvwprintw(base->cwindow, getmaxy(base->cwindow)-1, 1, "Status: %s", ui__status_text);
-  }
-
-  attroff(A_REVERSE);
+  ui__root_draw_menu(root);
+  ui__root_draw_status(root);
 
   wnoutrefresh(base->cwindow);
 
@@ -68,6 +65,29 @@ void ui__root_draw_proc(struct ui_window_base *base)
   }
 
   doupdate();
+}
+
+void ui__root_draw_menu(struct ui_window_root *root)
+{
+  WINDOW *mywin = root->super.cwindow;
+  attron(A_REVERSE);
+  mvwhline(mywin, 0, 0, ' ', getmaxx(mywin));
+  mvwaddstr(mywin, 0, 0, " UMPS v0.1.0-dev  File  Edit  Filters  Window  Help");
+  attroff(A_REVERSE);
+}
+
+void ui__root_draw_status(struct ui_window_root *root)
+{
+  WINDOW *mywin = root->super.cwindow;
+
+  attron(A_REVERSE);
+  mvwhline(mywin, getmaxy(mywin)-1, 0, ' ', getmaxx(mywin));
+
+  if (ui__status_text) {
+    mvwaddstr(mywin, getmaxy(mywin)-1, 1, ui__status_text);
+  }
+
+  attroff(A_REVERSE);
 }
 
 void ui__root_layout_proc(struct ui_window_base *base)
@@ -104,4 +124,9 @@ void ui__root_set_content(struct ui_window_root *root, struct ui_window_base *wi
 
 void ui__root_set_floating(struct ui_window_root *root, struct ui_window_base *window)
 {
+  umps_assert(!window->parent);
+  umps_assert(!window->cwindow);
+  umps_assert(!root->floating);
+
+  
 }
