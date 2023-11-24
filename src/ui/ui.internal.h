@@ -13,25 +13,36 @@
 #define UI__WINDOW_DOCK_LEFT   (2u)
 #define UI__WINDOW_DOCK_RIGHT  (3u)
 #define UI__WINDOW_DOCK_CENTER (4u)
+#define UI__WINDOW_DOCK_MAX UI__WINDOW_DOCK_CENTER+1
 
 #define UI__WINDOW_FOCUS_NONE (999u)
 
-#define UI__WINDOW_TYPE_BASE (0u)
+#define UI__FOREACH_WINDOW_TYPE(O) \
+  O(BASE), \
+  O(LEAF), \
+  O(DOCK), \
+  O(ROOT)
+
+enum {
+#define WT_DEF(_t) UI__WINDOW_TYPE_ ## _t
+  UI__FOREACH_WINDOW_TYPE(WT_DEF)
+#undef WT_DEF
+};
+
+/*#define UI__WINDOW_TYPE_BASE (0u)
 #define UI__WINDOW_TYPE_LEAF (1u)
 #define UI__WINDOW_TYPE_DOCK (2u)
-#define UI__WINDOW_TYPE_ROOT (3u)
-
-#define UI__WINDOW_DOCK_MAX UI__WINDOW_DOCK_CENTER+1
+#define UI__WINDOW_TYPE_ROOT (3u)*/
 
 #ifdef NDEBUG
 #define ui__cast(_t, _v) ((struct ui_window_ ## _t *)(_v))
 #else
-#define ui__cast(_t, _v) (ui__check_cast_to_ ## _t(_v))
+#define ui__cast(_t, _v) (ui__check_cast_to_ ## _t(_v, __FILE__, __func__, __LINE__))
 
-struct ui_window_base *ui__check_cast_to_base(void *);
-struct ui_window_leaf *ui__check_cast_to_leaf(void *);
-struct ui_window_dock *ui__check_cast_to_dock(void *);
-struct ui_window_root *ui__check_cast_to_root(void *);
+struct ui_window_base *ui__check_cast_to_base(void *, const char *, const char *, int);
+struct ui_window_leaf *ui__check_cast_to_leaf(void *, const char *, const char *, int);
+struct ui_window_dock *ui__check_cast_to_dock(void *, const char *, const char *, int);
+struct ui_window_root *ui__check_cast_to_root(void *, const char *, const char *, int);
 #endif
 
 /* concrete type definitions */
