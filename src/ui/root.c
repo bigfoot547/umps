@@ -1,5 +1,6 @@
 #include "ui.internal.h"
 #include "macros.h"
+#include "ui/uimenu.internal.h"
 #include <curses.h>
 
 #define UI__ROOT_MIN_Y (24)
@@ -72,7 +73,29 @@ void ui__root_draw_menu(struct ui_window_root *root)
   WINDOW *mywin = root->super.cwindow;
   attron(A_REVERSE);
   mvwhline(mywin, 0, 0, ' ', getmaxx(mywin));
-  mvwaddstr(mywin, 0, 0, " UMPS v0.1.0-dev  File  Edit  Filters  Window  Help");
+  mvwaddstr(mywin, 0, 0, " UMPS v0.1.0-dev");
+
+  char *text;
+  for (struct uimenu_item_header *item = root->menu_root->head; item; item = item->next) {
+    waddstr(mywin, "  ");
+    switch (item->type) {
+      case UMPS__MENU_TYPE_SPACER:
+        waddstr(mywin, "--");
+        continue;
+      case UMPS__MENU_TYPE_BUTTON:
+        text = ((struct uimenu_item_button *)item)->text;
+        break;
+      case UMPS__MENU_TYPE_MENU:
+        text = ((struct uimenu_item_menu *)item)->text;
+        break;
+      default:
+        umps_trap;
+    }
+
+    if (text) waddstr(mywin, text);
+    else waddstr(mywin, "???");
+  }
+
   attroff(A_REVERSE);
 }
 

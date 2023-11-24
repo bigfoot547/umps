@@ -206,6 +206,13 @@ void ui_init(void)
   ui__init_window_dock(maindock);
   ui__root_set_content(ui_root, ui__cast(base, maindock));
 
+  const char *menu_names[] = { "File", "View", "Tools", "Filters", "Help", NULL };
+  for (int i = 0; menu_names[i]; ++i) {
+    struct uimenu_item_menu *menu = malloc(sizeof(struct uimenu_item_menu));
+    uimenu_item_menu_init(menu, menu_names[i]);
+    uimenu_menu_add(ui_root->menu_root, ui_root->menu_root->tail, (struct uimenu_item_header *)menu, true);
+  }
+
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
     if (i == UI__WINDOW_DOCK_LEFT) continue;
