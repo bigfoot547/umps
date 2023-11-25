@@ -47,6 +47,7 @@ void ui__init_window_base(struct ui_window_base *base)
 
   base->draw_proc = &ui__default_draw_proc;
   base->layout_proc = NULL;
+  base->control_proc = NULL;
 }
 
 void ui__init_window_leaf(struct ui_window_leaf *leaf)
@@ -65,6 +66,7 @@ void ui__init_window_dock(struct ui_window_dock *dock)
   dock->super.type = UI__WINDOW_TYPE_DOCK;
   dock->super.draw_proc = &ui__dock_default_draw_proc;
   dock->super.layout_proc = &ui__dock_default_layout_proc;
+  dock->super.control_proc = &ui__dock_default_control_proc;
 
   for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i)
   {
@@ -81,14 +83,19 @@ void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
   root->super.type = UI__WINDOW_TYPE_ROOT;
   root->super.draw_proc = &ui__root_draw_proc;
   root->super.layout_proc = &ui__root_layout_proc;
+  root->super.control_proc = &ui__root_control_proc;
 
   root->cwindow = cwindow;
   getmaxyx(cwindow, root->super.dims.maxy, root->super.dims.maxx);
   getbegyx(cwindow, root->super.dims.begy, root->super.dims.begx);
 
+  root->menu_cwindow = newwin(1, root->super.dims.maxx, 0, 0);
+  root->menu_selected = NULL;
+
   root->undersize_scr = false;
   root->content = NULL;
   root->floating = NULL;
+  root->modal = NULL;
 
   root->menu_root = malloc(sizeof(struct uimenu_item_menu));
   uimenu_item_menu_init(root->menu_root, NULL);
@@ -207,6 +214,55 @@ childfound:
   }
 }
 
+WINDOW *ui__find_focused_leaf(struct ui_window_base *start)
+{
+  switch (start->type) {
+    case UI__WINDOW_TYPE_LEAF:
+      return ui__cast(leaf, start)->cwindow;
+    case UI__WINDOW_TYPE_DOCK: {
+      struct ui_window_dock *dock = ui__cast(dock, start);
+
+      for (unsigned i = 0; i < UI__WINDOW_DOCK_MAX; ++i) {
+        if (dock->children[i]) {
+          WINDOW *focus = ui__find_focused_leaf(dock->children[i]);
+          if (focus) return focus;
+        }
+      }
+
+      return NULL;
+    }
+    case UI__WINDOW_TYPE_ROOT: {
+      struct ui_window_root *root = ui__cast(root, start);
+      WINDOW *focus;
+
+      if (root->undersize_scr)
+        return root->cwindow; /* gobble up focus if the screen is undersize */
+
+      if (root->modal) {
+        focus = ui__find_focused_leaf(root->modal);
+        if (focus) return focus;
+      }
+
+      if (root->floating) {
+        focus = ui__find_focused_leaf(root->modal);
+        if (focus) return focus;
+      }
+
+      if (root->menu_selected) {
+        return root->menu_cwindow;
+      }
+
+      if (root->content) {
+        return ui__find_focused_leaf(root->content);
+      }
+
+      return NULL;
+    }
+    default:
+      umps_trap;
+  }
+}
+
 void ui__call_draw_proc(struct ui_window_base *base)
 {
   if (base->draw_proc)
@@ -221,6 +277,16 @@ void ui__call_layout_proc(struct ui_window_base *base)
   {
     (*base->layout_proc)(base);
   }
+}
+
+struct ui_window_base *ui__call_control_proc(struct ui_window_base *base, ui_control inp)
+{
+  if (base->control_proc)
+  {
+    return (*base->control_proc)(base, inp);
+  }
+
+  return NULL;
 }
 
 void ui_init(void)
@@ -267,17 +333,18 @@ void ui_handle(void)
 {
   while (true)
   {
-    struct ui_window_base *window = ui__find_focused();
+    WINDOW *cwindow = ui__find_focused_leaf(ui__cast(base, ui_root));
+
+    ui_control inp;
 
 #ifdef NCURSES_WIDE
-    wint_t inp;
-    /* FIXME: find a better way of circumnavigating this annoying implied-wrefresh business */
-    wget_wch(ui__cast(leaf, window)->cwindow, &inp);
+    keypad(cwindow, TRUE);
+    wget_wch(cwindow, &inp);
 #else
-    int inp = wgetch(window->cwindow);
+    inp = wgetch(window->cwindow);
 #endif
 
-    if (inp == NS('q'))
+    if (inp == NS('q')) /* TODO: make quitting flag in ui_root */
     {
       break;
     }
@@ -287,12 +354,11 @@ void ui_handle(void)
       getbegyx(ui_root->cwindow, ui_root->super.dims.begy, ui_root->super.dims.begx);
       ui__call_layout_proc(ui__cast(base, ui_root));
       ui__call_draw_proc(ui__cast(base, ui_root));
-    } else if (inp == NS('h')) {
-      ui__status_text = "Hello...";
-      ui__call_draw_proc(ui__cast(base, ui_root));
-    } else if (inp == NS('w')) {
-      ui__status_text = "World\u0416!";
-      ui__call_draw_proc(ui__cast(base, ui_root));
+    }
+
+    struct ui_window_base *target = ui__cast(base, ui_root);
+    while (target) {
+      target = ui__call_control_proc(target, inp);
     }
   }
 

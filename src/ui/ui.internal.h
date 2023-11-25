@@ -53,6 +53,14 @@ typedef void (ui__draw_proc)(struct ui_window_base *);
 /* called to recalculate the layout of the window (for resize) */
 typedef void (ui__layout_proc)(struct ui_window_base *);
 
+#ifdef NCURSES_WIDE
+typedef wint_t ui_control;
+#else
+typedef int ui_control;
+#endif
+
+typedef struct ui_window_base *(ui__control_proc)(struct ui_window_base *, ui_control);
+
 struct ui_window_base {
   unsigned type;
   struct ui_window_base *parent; /* the parent of a window manages its memory */
@@ -63,6 +71,7 @@ struct ui_window_base {
 
   ui__draw_proc *draw_proc;
   ui__layout_proc *layout_proc;
+  ui__control_proc *control_proc;
 };
 
 struct ui_window_leaf {
@@ -82,12 +91,15 @@ struct ui_window_dock {
 
 struct ui_window_root {
   struct ui_window_base super;
-  WINDOW *cwindow;
+  WINDOW *cwindow, *menu_cwindow;
+
+  struct uimenu_item_header *menu_selected;
 
   bool undersize_scr;
 
-  struct ui_window_base *content;
-  struct ui_window_base *floating;
+  struct ui_window_base *content;  /* content of the editor */
+  struct ui_window_base *floating; /* floating menu layer */
+  struct ui_window_base *modal;    /* modal (dialog) layer */
 
   struct uimenu_item_menu *menu_root;
 };
@@ -115,13 +127,16 @@ void ui__destroy_window(struct ui_window_base *);
 void ui__dock_add_child(struct ui_window_dock *, struct ui_window_base *, unsigned position, float size);
 void ui__dock_default_draw_proc(struct ui_window_base *base);
 void ui__dock_default_layout_proc(struct ui_window_base *base);
+struct ui_window_base *ui__dock_default_control_proc(struct ui_window_base *base, ui_control inp);
 
 /* root window hooks */
 void ui__root_draw_proc(struct ui_window_base *);
 void ui__root_layout_proc(struct ui_window_base *);
+struct ui_window_base *ui__root_control_proc(struct ui_window_base *base, ui_control inp);
 
 /* root_window_utilities */
 
+void ui__root_redraw_menu(struct ui_window_root *);
 void ui__root_set_content(struct ui_window_root *, struct ui_window_base *);
 
 extern const char *ui__status_text;

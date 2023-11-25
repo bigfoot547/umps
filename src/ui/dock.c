@@ -153,3 +153,15 @@ void ui__dock_default_layout_proc(struct ui_window_base *base)
     ui__call_layout_proc(child);
   }
 }
+
+struct ui_window_base *ui__dock_default_control_proc(struct ui_window_base *base, ui_control inp)
+{
+  struct ui_window_dock *dock = ui__cast(dock, base);
+  umps_unused(inp);
+
+  if (dock->focus != UI__WINDOW_FOCUS_NONE && dock->children[dock->focus]) {
+    return dock->children[dock->focus];
+  }
+
+  return NULL; /* no focus */
+}
