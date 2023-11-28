@@ -1,7 +1,6 @@
 #include "ui.internal.h"
 #include "macros.h"
 #include "ui/uimenu.internal.h"
-#include <curses.h>
 #include <string.h>
 
 #define UI__ROOT_MIN_Y (24)
@@ -65,39 +64,107 @@ void ui__root_draw_proc(struct ui_window_base *base)
   doupdate();
 }
 
+const char *ui__root_get_menu_text(struct uimenu_item_header *item)
+{
+  const char *text = NULL;
+  switch (item->type) {
+    case UMPS__MENU_TYPE_SPACER:
+      return "--";
+    case UMPS__MENU_TYPE_BUTTON:
+      text = ((struct uimenu_item_button *)item)->text;
+      break;
+    case UMPS__MENU_TYPE_MENU:
+      text = ((struct uimenu_item_menu *)item)->text;
+      break;
+    default:
+      umps_trap;
+  }
+
+  return text ? text : "???";
+}
+
+void ui__update_scroll(struct ui_window_root *root)
+{
+  unsigned cursor = 0, prevcursor = 0;
+  unsigned menu_len = getmaxx(root->menu_cwindow) - root->menu_prefix_len - 2;
+
+  for (struct uimenu_item_header *item = root->menu_root->head; item; item = item->next, prevcursor = cursor) {
+    if (item == root->menu_selected) { /* we have found the item :) */
+      if (root->menu_scroll > cursor) { /* we are scrolled too far to the right */
+        root->menu_scroll = cursor;
+        return;
+      }
+    }
+
+    cursor += 2;
+
+    cursor += strlen(ui__root_get_menu_text(item));
+   
+    if (item == root->menu_selected) {
+      if (cursor > root->menu_scroll + menu_len) {
+        root->menu_scroll = cursor - menu_len;
+      }
+
+      return;
+    }
+  }
+}
+
+void ui__root_scroll_text(struct ui_window_root *root, unsigned cursor, const char *text, size_t tlen)
+{
+  if (cursor < root->menu_scroll) {
+    size_t strend = cursor + tlen;
+    if (strend > root->menu_scroll) {
+      size_t desired_length = strend - root->menu_scroll;
+      waddnstr(root->menu_cwindow, text + (tlen - desired_length), desired_length);
+    }
+    return;
+  }
+
+  waddnstr(root->menu_cwindow, text, tlen);
+}
+
 void ui__root_draw_menu(struct ui_window_root *root)
 {
   wattron(root->menu_cwindow, A_REVERSE);
   mvwhline(root->menu_cwindow, 0, 0, ' ', getmaxx(root->menu_cwindow));
-  mvwaddstr(root->menu_cwindow, 0, 0, " UMPS v0.1.0-dev");
+  mvwaddnstr(root->menu_cwindow, 0, 0, root->menu_prefix, root->menu_prefix_len);
 
-  char *text;
+  ui__update_scroll(root);
+
+  if (root->menu_scroll > 2) {
+    waddch(root->menu_cwindow, ACS_LARROW);
+  } else {
+    waddch(root->menu_cwindow, ' ');
+  }
+
+  unsigned cursor = 0;
+  const char *text;
   int idx = 0;
-  for (struct uimenu_item_header *item = root->menu_root->head; item; item = item->next, ++idx) {
-    waddstr(root->menu_cwindow, "  ");
-
-    switch (item->type) {
-      case UMPS__MENU_TYPE_SPACER:
-        waddstr(root->menu_cwindow, "--");
-        continue;
-      case UMPS__MENU_TYPE_BUTTON:
-        text = ((struct uimenu_item_button *)item)->text;
-        break;
-      case UMPS__MENU_TYPE_MENU:
-        text = ((struct uimenu_item_menu *)item)->text;
-        break;
-      default:
-        umps_trap;
+  unsigned menu_len = getmaxx(root->menu_cwindow) - root->menu_prefix_len - 2;
+  struct uimenu_item_header *item;
+  for (item = root->menu_root->head; item; item = item->next, ++idx) {
+    if (cursor > root->menu_scroll) {
+      waddstr(root->menu_cwindow, "  ");
     }
+    cursor += 2;
 
+    text = ui__root_get_menu_text(item);
+    size_t tlen = strlen(text);
     if (item == root->menu_selected)
       wattroff(root->menu_cwindow, A_REVERSE);
 
-    if (text) waddstr(root->menu_cwindow, text);
-    else waddstr(root->menu_cwindow, "???");
+    ui__root_scroll_text(root, cursor, text, tlen);
 
     wattron(root->menu_cwindow, A_REVERSE);
+    cursor += tlen;
+
+    if (cursor >= root->menu_scroll + menu_len) {
+      break;
+    }
   }
+
+  mvwaddch(root->menu_cwindow, 0, getmaxx(root->menu_cwindow)-1, (cursor > root->menu_scroll + menu_len || (item && item->next)) ? ACS_RARROW : ' ');
 
   wattroff(root->menu_cwindow, A_REVERSE);
 }
@@ -128,12 +195,12 @@ void ui__root_layout_proc(struct ui_window_base *base)
   struct ui_window_root *root = ui__cast(root, base);
 
   if (root->cwindow != stdscr) {
-    if (root->cwindow) delwin(root->cwindow);
-    root->cwindow = newwin(root->super.dims.maxy, root->super.dims.maxx, root->super.dims.begy, root->super.dims.begx);
+    if (root->cwindow) NCCI(delwin(root->cwindow));
+    root->cwindow = NCCP(newwin(root->super.dims.maxy, root->super.dims.maxx, root->super.dims.begy, root->super.dims.begx));
   }
 
-  delwin(root->menu_cwindow);
-  root->menu_cwindow = newwin(1, root->super.dims.maxx, 0, 0);
+  NCCI(delwin(root->menu_cwindow));
+  root->menu_cwindow = NCCP(newwin(1, root->super.dims.maxx, 0, 0));
 
   if (root->super.dims.maxy < UI__ROOT_MIN_Y || root->super.dims.maxx < UI__ROOT_MIN_X) {
     root->undersize_scr = true;
@@ -171,6 +238,14 @@ struct ui_window_base *ui__root_control_proc(struct ui_window_base *base, ui_con
       }
       ui__root_redraw_menu(root);
       return NULL;
+    case NS('a'):
+      --root->menu_scroll;
+      ui__root_redraw_menu(root);
+      break;
+    case NS('d'):
+      ++root->menu_scroll;
+      ui__root_redraw_menu(root);
+      break;
     case KEY_LEFT:
     case KEY_RIGHT:
       if (root->menu_selected) {

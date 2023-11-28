@@ -51,6 +51,28 @@ struct ui_window_root *ui__check_cast_to_root(void *obj, const char *file, const
   UMPS__DEBUG_DO_ERROR(obj, file, func, line, UI__WINDOW_TYPE_ROOT);
 }
 
+int ui__debug_nc_check_int(int in, const char *call, const char *file, const char *func, int line)
+{
+  if (in == ERR) {
+    fprintf(stderr, "!!!!!\n!!!!!\n!!!!! UMPS checked ncurses call \"%s\" failed (returned ERR) at %s:%d %s !!!!!\n!!!!!\n!!!!!\n",
+            call, file, line, func);
+    umps_trap;
+  }
+
+  return in;
+}
+
+WINDOW *ui__debug_nc_check_ptr(WINDOW *ptr, const char *call, const char *file, const char *func, int line)
+{
+  if (ptr == NULL) {
+    fprintf(stderr, "!!!!!\n!!!!!\n!!!!! UMPS checked ncurses call \"%s\" failed (returned NULL) at %s:%d %s !!!!!\n!!!!!\n!!!!!\n",
+            call, file, line, func);
+    umps_trap;
+  }
+
+  return ptr;
+}
+
 #else
 
 /* the file must have a declaration */

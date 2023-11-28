@@ -6,6 +6,7 @@
 #include "config.h"
 #include NCURSES_INCLUDE
 
+#include <stddef.h> /* for size_t */
 #include <stdbool.h>
 
 #define UI__WINDOW_DOCK_TOP    (0u)
@@ -36,6 +37,10 @@ enum {
 
 #ifdef NDEBUG
 #define ui__cast(_t, _v) ((struct ui_window_ ## _t *)(_v))
+
+/* ncurses auto-checkers no-op in release */
+#define NCCI(_call) _call
+#define NCCP(_call) _call
 #else
 #define ui__cast(_t, _v) (ui__check_cast_to_ ## _t(_v, __FILE__, __func__, __LINE__))
 
@@ -43,6 +48,12 @@ struct ui_window_base *ui__check_cast_to_base(void *, const char *, const char *
 struct ui_window_leaf *ui__check_cast_to_leaf(void *, const char *, const char *, int);
 struct ui_window_dock *ui__check_cast_to_dock(void *, const char *, const char *, int);
 struct ui_window_root *ui__check_cast_to_root(void *, const char *, const char *, int);
+
+#define NCCI(_call) ui__debug_nc_check_int(_call, #_call, __FILE__, __func__, __LINE__)
+#define NCCP(_call) ui__debug_nc_check_ptr(_call, #_call, __FILE__, __func__, __LINE__)
+
+int ui__debug_nc_check_int(int in, const char *call, const char *file, const char *func, int line);
+WINDOW *ui__debug_nc_check_ptr(WINDOW *ptr, const char *call, const char *file, const char *func, int line);
 #endif
 
 /* concrete type definitions */
@@ -93,9 +104,13 @@ struct ui_window_root {
   struct ui_window_base super;
   WINDOW *cwindow, *menu_cwindow;
 
-  struct uimenu_item_header *menu_selected;
+  const char *menu_prefix;
+  size_t menu_prefix_len;
 
-  bool undersize_scr;
+  struct uimenu_item_header *menu_selected;
+  unsigned menu_scroll;
+
+  bool undersize_scr; /* true if the screen was found to be undersize (set in layout proc) */
 
   struct ui_window_base *content;  /* content of the editor */
   struct ui_window_base *floating; /* floating menu layer */

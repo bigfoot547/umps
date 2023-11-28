@@ -1,5 +1,7 @@
 #mesondefine NCURSES_WIDE
 #mesondefine NCURSES_INCLUDE
+#mesondefine UMPS_NAME
+#mesondefine UMPS_VERSION
 
 #ifdef NCURSES_WIDE
 #define NCURSES_TEXT(_s) L ## _s

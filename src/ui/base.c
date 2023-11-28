@@ -5,6 +5,7 @@
 #include "ui.internal.h"
 #include "ui/uimenu.internal.h"
 #include "../macros.h"
+#include "config.h"
 
 struct ui_window_root *ui_root = NULL;
 
@@ -31,8 +32,8 @@ void ui__leaf_draw_proc(struct ui_window_base *base)
 void ui__leaf_layout_proc(struct ui_window_base *base)
 {
   struct ui_window_leaf *leaf = (struct ui_window_leaf *)base;
-  if (leaf->cwindow) delwin(leaf->cwindow);
-  leaf->cwindow = newwin(leaf->super.dims.maxy, leaf->super.dims.maxx, leaf->super.dims.begy, leaf->super.dims.begx);
+  if (leaf->cwindow) NCCI(delwin(leaf->cwindow));
+  leaf->cwindow = NCCP(newwin(leaf->super.dims.maxy, leaf->super.dims.maxx, leaf->super.dims.begy, leaf->super.dims.begx));
 }
 
 void ui__init_window_base(struct ui_window_base *base)
@@ -89,8 +90,12 @@ void ui__init_window_root(struct ui_window_root *root, WINDOW *cwindow)
   getmaxyx(cwindow, root->super.dims.maxy, root->super.dims.maxx);
   getbegyx(cwindow, root->super.dims.begy, root->super.dims.begx);
 
+  root->menu_prefix = "";
+  root->menu_prefix_len = 0;
+
   root->menu_cwindow = newwin(1, root->super.dims.maxx, 0, 0);
   root->menu_selected = NULL;
+  root->menu_scroll = 0;
 
   root->undersize_scr = false;
   root->content = NULL;
@@ -303,14 +308,18 @@ void ui_init(void)
   curs_set(0);
 
   ui__init_window_root(ui_root, stdscr);
+  ui__call_layout_proc(ui__cast(base, ui_root));
 
   /* set up UI */
+
+  ui_root->menu_prefix = " " UMPS_NAME " " UMPS_VERSION " ";
+  ui_root->menu_prefix_len = strlen(ui_root->menu_prefix);
 
   struct ui_window_dock *maindock = malloc(sizeof(struct ui_window_dock));
   ui__init_window_dock(maindock);
   ui__root_set_content(ui_root, ui__cast(base, maindock));
 
-  const char *menu_names[] = { "File", "View", "Tools", "Filters", "Help", NULL };
+  const char *menu_names[] = { "File", "View", "Tools", "Filters", "Help", "1", "22", "333", "4444", "55555", "666666", "7777777", "88888888", "999999999", "0000000000", NULL };
   for (int i = 0; menu_names[i]; ++i) {
     struct uimenu_item_menu *menu = malloc(sizeof(struct uimenu_item_menu));
     uimenu_item_menu_init(menu, menu_names[i]);
@@ -325,7 +334,7 @@ void ui_init(void)
     ui__dock_add_child(maindock, ui__cast(base, win_traces), i, 1./5);
   }
 
-  /* ui__call_layout_proc(ui__cast(base, ui_root)); */
+  ui__call_layout_proc(ui__cast(base, ui_root)); /* should call layout proc to check for undersize at least */
   ui__call_draw_proc(ui__cast(base, ui_root));
 }
 
