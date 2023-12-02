@@ -151,8 +151,10 @@ void ui__root_draw_menu(struct ui_window_root *root)
 
     text = ui__root_get_menu_text(item);
     size_t tlen = strlen(text);
-    if (item == root->menu_selected)
+    if (item == root->menu_selected) {
       wattroff(root->menu_cwindow, A_REVERSE);
+      /* the coordinates of the selected menu item are here, place the window :) */
+    }
 
     ui__root_scroll_text(root, cursor, text, tlen);
 
